@@ -1,0 +1,170 @@
+/* ============================================================
+   MAZAR — assets/css/xp-animations.css
+   XP System + UI Animations
+============================================================ */
+
+/* ── Floating XP Text ─────────────────────────────────── */
+.xp-float {
+  position: fixed;
+  font-size: 1.125rem;
+  font-weight: 900;
+  color: #FBBF24;
+  text-shadow: 0 2px 8px rgba(0,0,0,.3);
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  animation: xpFloatUp 1.8s cubic-bezier(.22,1,.36,1) forwards;
+}
+
+@keyframes xpFloatUp {
+  0%   { opacity: 0; transform: translateY(0) scale(.6); }
+  15%  { opacity: 1; transform: translateY(-10px) scale(1.15); }
+  60%  { opacity: 1; transform: translateY(-50px) scale(1); }
+  100% { opacity: 0; transform: translateY(-90px) scale(.85); }
+}
+
+/* ── Level Up Flash ───────────────────────────────────── */
+.level-up-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, rgba(59,130,246,.35) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 9990;
+  animation: levelUpFlash .9s ease-out forwards;
+}
+
+@keyframes levelUpFlash {
+  0%   { opacity: 0; }
+  20%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ── Toast Notification ───────────────────────────────── */
+.mazar-toast {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .875rem 1.25rem;
+  border-radius: .875rem;
+  box-shadow: 0 8px 30px rgba(0,0,0,.15);
+  min-width: 260px;
+  max-width: 360px;
+  font-size: .875rem;
+  font-weight: 600;
+  animation: toastIn .4s cubic-bezier(.34,1.56,.64,1) forwards;
+  backdrop-filter: blur(8px);
+}
+
+.mazar-toast.success {
+  background: linear-gradient(135deg, #065f46, #059669);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.2);
+}
+.mazar-toast.error {
+  background: linear-gradient(135deg, #7f1d1d, #dc2626);
+  color: #fff;
+}
+.mazar-toast.info {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  color: #fff;
+}
+.mazar-toast.xp {
+  background: linear-gradient(135deg, #78350f, #d97706);
+  color: #fff;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(60px) scale(.9); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes toastOut {
+  from { opacity: 1; transform: translateX(0); max-height: 80px; margin-bottom: .5rem; }
+  to   { opacity: 0; transform: translateX(60px); max-height: 0; margin-bottom: 0; overflow: hidden; }
+}
+
+.mazar-toast.removing {
+  animation: toastOut .35s ease-in forwards;
+}
+
+/* ── Shimmer Loading ──────────────────────────────────── */
+.shimmer-card {
+  background: #fff;
+  border-radius: 1rem;
+  overflow: hidden;
+}
+.shimmer-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmerAnim 1.6s ease-in-out infinite;
+}
+@keyframes shimmerAnim {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Lesson Card Entrance ────────────────────────────── */
+.lesson-card {
+  animation: cardEnter .5s cubic-bezier(.34,1.56,.64,1) both;
+}
+.lesson-card:nth-child(1) { animation-delay: .05s; }
+.lesson-card:nth-child(2) { animation-delay: .10s; }
+.lesson-card:nth-child(3) { animation-delay: .15s; }
+.lesson-card:nth-child(4) { animation-delay: .20s; }
+.lesson-card:nth-child(5) { animation-delay: .25s; }
+.lesson-card:nth-child(6) { animation-delay: .30s; }
+
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(20px) scale(.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Complete Button Pulse ───────────────────────────── */
+.complete-btn.loading {
+  animation: btnPulse .8s ease-in-out infinite;
+}
+@keyframes btnPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(.97); opacity: .7; }
+}
+
+/* ── XP Bar Glow ─────────────────────────────────────── */
+.xp-bar-fill {
+  box-shadow: 0 0 8px rgba(251,191,36,.5);
+}
+
+/* ── Level Up Modal ──────────────────────────────────── */
+.level-up-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn .3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.level-up-card {
+  background: linear-gradient(135deg, #1e3a8a, #1d4ed8);
+  border-radius: 2rem;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  color: white;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 40px 80px rgba(0,0,0,.4);
+  animation: cardPop .5s cubic-bezier(.34,1.56,.64,1);
+}
+
+@keyframes cardPop {
+  from { transform: scale(.5) translateY(40px); opacity: 0; }
+  to   { transform: scale(1) translateY(0);     opacity: 1; }
+}
