@@ -45,8 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $db   = getDB();
                 $stmt = $db->prepare("
-                    SELECT id, full_name, password, role, grade_level_id, xp_points, level, status, email_verified 
-                    FROM users 
+                    SELECT id, full_name, password, role, grade_level_id, xp_points, level, status
+                    FROM users
                     WHERE email = :email
                 ");
                 $stmt->execute([':email' => $email]);
