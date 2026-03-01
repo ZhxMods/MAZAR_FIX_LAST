@@ -159,7 +159,7 @@ $config = $configStmt->fetch() ?: [
 $maskedKey = '';
 if (!empty($config['api_key'])) {
     $keyLen = strlen($config['api_key']);
-    $maskedKey = substr($config['api_key'], 0, 8) . str_repeat('*', $keyLen - 16) . substr($config['api_key'], -8);
+    $maskedKey = substr($config['api_key'], 0, 8) . str_repeat('*', max(0, $keyLen - 16)) . substr($config['api_key'], -8);
 }
 
 require dirname(__DIR__) . '/admin/_layout.php';
