@@ -2,6 +2,7 @@
 // ============================================================
 //  MAZAR — student/mazar-ai.php
 //  MAZAR AI chat page — student-only, auth-guarded
+//  NOW WITH DATABASE CONFIGURATION INTEGRATION
 // ============================================================
 require_once dirname(__DIR__) . '/config.php';
 require_once dirname(__DIR__) . '/includes/db.php';
@@ -13,8 +14,76 @@ $dir      = getDirection();
 $userName = $_SESSION[SESS_USERNAME] ?? 'Étudiant';
 $userInitial = mb_strtoupper(mb_substr($userName, 0, 1));
 
-// API key — keep server-side, inject once into JS config
-define('GROQ_API_KEY', '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');
+// Fetch AI configuration from database
+$db = getDB();
+$aiConfig = [
+    'enabled' => false,
+    'provider' => 'groq',
+    'model' => 'llama-3.3-70b-versatile',
+    'api_key' => '',
+    'custom_url' => '',
+    'system_prompt' => 'You are MAZAR AI, an educational assistant for Moroccan students.',
+    'temperature' => 0.7,
+    'max_tokens' => 1000
+];
+
+try {
+    // Ensure table exists
+    $db->exec("
+        CREATE TABLE IF NOT EXISTS ai_config (
+            id INT UNSIGNED PRIMARY KEY DEFAULT 1,
+            provider VARCHAR(50) NOT NULL DEFAULT 'groq',
+            model VARCHAR(100) NOT NULL DEFAULT 'llama-3.3-70b-versatile',
+            api_key TEXT,
+            custom_url VARCHAR(500) DEFAULT NULL,
+            system_prompt TEXT,
+            enabled TINYINT(1) DEFAULT 1,
+            temperature DECIMAL(3,2) DEFAULT 0.70,
+            max_tokens INT UNSIGNED DEFAULT 1000,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_by INT UNSIGNED DEFAULT NULL
+        )
+    ");
+    
+    // Add custom_url if not exists
+    try {
+        $db->exec("ALTER TABLE ai_config ADD COLUMN custom_url VARCHAR(500) DEFAULT NULL");
+    } catch (Exception $e) {
+        // Already exists
+    }
+    
+    $stmt = $db->query("SELECT * FROM ai_config WHERE id = 1");
+    $dbConfig = $stmt->fetch();
+    
+    if ($dbConfig) {
+        $aiConfig = array_merge($aiConfig, $dbConfig);
+    } else {
+        // Insert default config
+        $db->exec("INSERT INTO ai_config (id, provider, model, enabled) VALUES (1, 'groq', 'llama-3.3-70b-versatile', 1)");
+        $aiConfig['enabled'] = true;
+    }
+} catch (Exception $e) {
+    error_log('MAZAR AI Config Error: ' . $e->getMessage());
+}
+
+// Check if AI is enabled
+$aiDisabled = empty($aiConfig['enabled']);
+
+// Determine API endpoint based on provider
+$apiEndpoints = [
+    'openai' => 'https://api.openai.com/v1/chat/completions',
+    'groq' => 'https://api.groq.com/openai/v1/chat/completions',
+    'anthropic' => 'https://api.anthropic.com/v1/messages',
+    'custom' => $aiConfig['custom_url'] ?? ''
+];
+
+$apiEndpoint = $apiEndpoints[$aiConfig['provider']] ?? $apiEndpoints['groq'];
+
+// If custom URL is set for custom provider, use it
+if ($aiConfig['provider'] === 'custom' && !empty($aiConfig['custom_url'])) {
+    $apiEndpoint = $aiConfig['custom_url'];
+}
+
 ?>
 <!DOCTYPE html>
 <html lang="fr" dir="ltr">
@@ -55,15 +124,15 @@ define('GROQ_API_KEY', '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
           <path d="M18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z"/>
         </svg>
       </div>
-      <span class="ai-online-dot"></span>
+      <span class="ai-online-dot <?= $aiDisabled ? 'disabled' : '' ?>"></span>
     </div>
 
     <!-- AI info -->
     <div class="ai-header-info">
       <div class="ai-header-name">MAZAR AI</div>
       <div class="ai-header-sub">
-        <span class="ai-header-sub-dot"></span>
-        Assistant éducatif · En ligne
+        <span class="ai-header-sub-dot <?= $aiDisabled ? 'disabled' : '' ?>"></span>
+        <?= $aiDisabled ? 'Service temporairement indisponible' : 'Assistant éducatif · En ligne' ?>
       </div>
     </div>
 
@@ -91,9 +160,14 @@ define('GROQ_API_KEY', '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
         <span class="gradient-text">MAZAR AI</span>
       </div>
       <p class="welcome-sub">
-        Votre assistant éducatif intelligent, dédié à l'apprentissage sur la plateforme <strong>Mazar Education</strong>. Posez-moi vos questions sur vos cours, matières et révisions.
+        <?php if ($aiDisabled): ?>
+          <span style="color: #ef4444;">⚠️ Le service IA est temporairement désactivé pour maintenance. Veuillez réessayer plus tard.</span>
+        <?php else: ?>
+          Votre assistant éducatif intelligent, dédié à l'apprentissage sur la plateforme <strong>Mazar Education</strong>. Posez-moi vos questions sur vos cours, matières et révisions.
+        <?php endif; ?>
       </p>
 
+      <?php if (!$aiDisabled): ?>
       <!-- Suggestion pills -->
       <div class="suggestions">
         <button class="suggest-pill" onclick="sendSuggestion(this)">
@@ -121,21 +195,23 @@ define('GROQ_API_KEY', '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
           Théorème de Pythagore
         </button>
       </div>
+      <?php endif; ?>
     </div>
 
   </div><!-- /#chat-messages -->
 
   <!-- ══ INPUT ══════════════════════════════════════════ -->
   <div id="input-area">
-    <div class="input-card">
+    <div class="input-card <?= $aiDisabled ? 'disabled' : '' ?>">
       <textarea
         id="user-input"
         rows="1"
-        placeholder="Posez votre question éducative…"
+        placeholder="<?= $aiDisabled ? 'Service temporairement indisponible...' : 'Posez votre question éducative…' ?>"
         aria-label="Votre message"
         maxlength="1200"
+        <?= $aiDisabled ? 'disabled' : '' ?>
       ></textarea>
-      <button id="send-btn" disabled aria-label="Envoyer le message" class="gradient-hero">
+      <button id="send-btn" disabled aria-label="Envoyer le message" class="gradient-hero" <?= $aiDisabled ? 'disabled' : '' ?>>
         <i data-lucide="send" style="width:17px;height:17px;color:#fff;"></i>
       </button>
     </div>
@@ -149,12 +225,20 @@ define('GROQ_API_KEY', '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
 
 </div><!-- /#chat-app -->
 
-<!-- Inject API config before loading JS -->
+<!-- Inject API config from database -->
 <script>
   window.MAZAR_AI_CONFIG = {
-    key:      <?= json_encode(GROQ_API_KEY) ?>,
+    enabled: <?= json_encode(!$aiDisabled) ?>,
+    provider: <?= json_encode($aiConfig['provider']) ?>,
+    model: <?= json_encode($aiConfig['model']) ?>,
+    apiKey: <?= json_encode($aiConfig['api_key']) ?>,
+    customUrl: <?= json_encode($aiConfig['custom_url'] ?? '') ?>,
+    systemPrompt: <?= json_encode($aiConfig['system_prompt']) ?>,
+    temperature: <?= json_encode((float)$aiConfig['temperature']) ?>,
+    maxTokens: <?= json_encode((int)$aiConfig['max_tokens']) ?>,
+    apiEndpoint: <?= json_encode($apiEndpoint) ?>,
     userName: <?= json_encode($userName) ?>,
-    initial:  <?= json_encode($userInitial) ?>
+    initial: <?= json_encode($userInitial) ?>
   };
 </script>
 

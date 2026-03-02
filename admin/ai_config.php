@@ -22,16 +22,16 @@ $success = '';
 try {
     $db->exec("
         CREATE TABLE IF NOT EXISTS ai_config (
-            id INT PRIMARY KEY DEFAULT 1,
+            id INT UNSIGNED PRIMARY KEY DEFAULT 1,
             provider VARCHAR(50) NOT NULL DEFAULT 'openai',
             model VARCHAR(100) NOT NULL DEFAULT 'gpt-4o',
             api_key TEXT,
             system_prompt TEXT,
             enabled TINYINT(1) DEFAULT 1,
             temperature DECIMAL(3,2) DEFAULT 0.70,
-            max_tokens INT DEFAULT 1000,
+            max_tokens INT UNSIGNED DEFAULT 1000,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            updated_by INT,
+            updated_by INT UNSIGNED DEFAULT NULL,
             CONSTRAINT chk_id CHECK (id = 1)
         )
     ");
@@ -129,16 +129,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCsrf()) {
         }
     } elseif ($action === 'test_ai') {
         // Test AI connection
-        $testPrompt = 'Hello, this is a test. Please respond with "MAZAR AI is working correctly."';
-        
         $configStmt = $db->query("SELECT * FROM ai_config WHERE id = 1");
         $config = $configStmt->fetch();
         
         if (!$config || empty($config['api_key'])) {
             $errors[] = t('api_key_missing');
+        } elseif (!$config['enabled']) {
+            $errors[] = t('ai_disabled_test');
         } else {
-            // Simple test - in production, you'd make an actual API call
-            $success = t('ai_test_initiated');
+            // Make actual API test call
+            $testResult = testAIConnection($config);
+            if ($testResult['success']) {
+                $success = t('ai_test_success') . ': ' . $testResult['message'];
+            } else {
+                $errors[] = t('ai_test_failed') . ': ' . $testResult['message'];
+            }
         }
     }
 }
@@ -160,6 +165,77 @@ $maskedKey = '';
 if (!empty($config['api_key'])) {
     $keyLen = strlen($config['api_key']);
     $maskedKey = substr($config['api_key'], 0, 8) . str_repeat('*', max(0, $keyLen - 16)) . substr($config['api_key'], -8);
+}
+
+/**
+ * Test AI connection with actual API call
+ */
+function testAIConnection(array $config): array {
+    $provider = $config['provider'];
+    $apiKey = $config['api_key'];
+    $model = $config['model'];
+    
+    $endpoints = [
+        'openai' => 'https://api.openai.com/v1/chat/completions',
+        'groq' => 'https://api.groq.com/openai/v1/chat/completions',
+        'anthropic' => 'https://api.anthropic.com/v1/messages'
+    ];
+    
+    $url = $endpoints[$provider] ?? $endpoints['groq'];
+    
+    $headers = [
+        'Authorization: Bearer ' . $apiKey,
+        'Content-Type: application/json'
+    ];
+    
+    if ($provider === 'anthropic') {
+        $headers[] = 'anthropic-version: 2023-06-01';
+    }
+    
+    $payload = [
+        'model' => $model,
+        'messages' => [
+            ['role' => 'user', 'content' => 'Say "MAZAR AI test successful" in 5 words or less.']
+        ],
+        'max_tokens' => 50
+    ];
+    
+    if ($provider !== 'anthropic') {
+        $payload['temperature'] = 0.7;
+    }
+    
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+    
+    if ($error) {
+        return ['success' => false, 'message' => 'Connection error: ' . $error];
+    }
+    
+    if ($httpCode !== 200) {
+        $data = json_decode($response, true);
+        $msg = $data['error']['message'] ?? 'HTTP ' . $httpCode;
+        return ['success' => false, 'message' => $msg];
+    }
+    
+    $data = json_decode($response, true);
+    $content = '';
+    
+    if ($provider === 'anthropic') {
+        $content = $data['content'][0]['text'] ?? '';
+    } else {
+        $content = $data['choices'][0]['message']['content'] ?? '';
+    }
+    
+    return ['success' => true, 'message' => trim($content) ?: 'Connection successful'];
 }
 
 require dirname(__DIR__) . '/admin/_layout.php';
@@ -237,7 +313,7 @@ require dirname(__DIR__) . '/admin/_layout.php';
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
                         <?= t('ai_provider') ?>
                     </label>
-                    <select name="provider" required
+                    <select name="provider" id="provider-select" required
                             class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
                         <option value="openai" <?= $config['provider'] === 'openai' ? 'selected' : '' ?>>OpenAI (GPT)</option>
                         <option value="groq" <?= $config['provider'] === 'groq' ? 'selected' : '' ?>>Groq (Llama)</option>
@@ -249,29 +325,11 @@ require dirname(__DIR__) . '/admin/_layout.php';
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
                         <?= t('ai_model') ?>
                     </label>
-                    <select name="model" required
-                            class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-                        <!-- OpenAI Models -->
-                        <optgroup label="OpenAI" class="provider-models" data-provider="openai">
-                            <option value="gpt-4o" <?= $config['model'] === 'gpt-4o' ? 'selected' : '' ?>>GPT-4o</option>
-                            <option value="gpt-4o-mini" <?= $config['model'] === 'gpt-4o-mini' ? 'selected' : '' ?>>GPT-4o Mini</option>
-                            <option value="gpt-4-turbo" <?= $config['model'] === 'gpt-4-turbo' ? 'selected' : '' ?>>GPT-4 Turbo</option>
-                            <option value="gpt-3.5-turbo" <?= $config['model'] === 'gpt-3.5-turbo' ? 'selected' : '' ?>>GPT-3.5 Turbo</option>
-                        </optgroup>
-                        <!-- Groq Models -->
-                        <optgroup label="Groq" class="provider-models" data-provider="groq">
-                            <option value="llama-3.1-70b" <?= $config['model'] === 'llama-3.1-70b' ? 'selected' : '' ?>>Llama 3.1 70B</option>
-                            <option value="llama-3.1-8b" <?= $config['model'] === 'llama-3.1-8b' ? 'selected' : '' ?>>Llama 3.1 8B</option>
-                            <option value="mixtral-8x7b" <?= $config['model'] === 'mixtral-8x7b' ? 'selected' : '' ?>>Mixtral 8x7B</option>
-                        </optgroup>
-                        <!-- Anthropic Models -->
-                        <optgroup label="Anthropic" class="provider-models" data-provider="anthropic">
-                            <option value="claude-3-5-sonnet" <?= $config['model'] === 'claude-3-5-sonnet' ? 'selected' : '' ?>>Claude 3.5 Sonnet</option>
-                            <option value="claude-3-opus" <?= $config['model'] === 'claude-3-opus' ? 'selected' : '' ?>>Claude 3 Opus</option>
-                            <option value="claude-3-sonnet" <?= $config['model'] === 'claude-3-sonnet' ? 'selected' : '' ?>>Claude 3 Sonnet</option>
-                            <option value="claude-3-haiku" <?= $config['model'] === 'claude-3-haiku' ? 'selected' : '' ?>>Claude 3 Haiku</option>
-                        </optgroup>
-                    </select>
+                    <input type="text" name="model" id="model-input" required
+                           value="<?= clean($config['model']) ?>"
+                           placeholder="e.g., gpt-4o, llama-3.1-70b, claude-3-sonnet"
+                           class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm">
+                    <p class="text-gray-500 text-xs mt-1"><?= t('model_input_desc') ?></p>
                 </div>
             </div>
 
@@ -299,8 +357,8 @@ require dirname(__DIR__) . '/admin/_layout.php';
                 <label class="block text-sm font-semibold text-gray-700 mb-2">
                     <?= t('system_prompt') ?>
                 </label>
-                <textarea name="system_prompt" rows="4" required
-                          class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"><?= clean($config['system_prompt'] ?? '') ?></textarea>
+                <textarea name="system_prompt" rows="6" required
+                          class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono text-sm"><?= clean($config['system_prompt'] ?? '') ?></textarea>
                 <p class="text-gray-500 text-xs mt-1"><?= t('system_prompt_desc') ?></p>
             </div>
 
@@ -345,7 +403,7 @@ require dirname(__DIR__) . '/admin/_layout.php';
                     <?= t('save_configuration') ?>
                 </button>
                 
-                <button type="submit" formaction="?test=1" formmethod="post"
+                <button type="submit" name="action" value="test_ai"
                         class="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition flex items-center gap-2">
                     <i data-lucide="play-circle" class="w-5 h-5"></i>
                     <?= t('test_connection') ?>
@@ -405,25 +463,20 @@ require dirname(__DIR__) . '/admin/_layout.php';
         lucide.createIcons();
     }
     
-    // Filter models by provider
-    document.querySelector('select[name="provider"]').addEventListener('change', function() {
-        const provider = this.value;
-        const modelSelect = document.querySelector('select[name="model"]');
-        const optgroups = modelSelect.querySelectorAll('optgroup');
-        
-        optgroups.forEach(og => {
-            og.style.display = og.dataset.provider === provider ? '' : 'none';
-        });
-        
-        // Select first available model
-        const visibleOption = modelSelect.querySelector(`optgroup[data-provider="${provider}"] option`);
-        if (visibleOption) {
-            visibleOption.selected = true;
-        }
-    });
+    // Provider-specific model suggestions
+    const modelSuggestions = {
+        openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+        groq: ['llama-3.3-70b-versatile', 'llama-3.1-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768', 'gemma2-9b-it'],
+        anthropic: ['claude-3-5-sonnet-20241022', 'claude-3-opus-20240229', 'claude-3-sonnet-20240229', 'claude-3-haiku-20240307']
+    };
     
-    // Trigger change to set initial state
-    document.querySelector('select[name="provider"]').dispatchEvent(new Event('change'));
+    // Update placeholder based on provider
+    document.getElementById('provider-select').addEventListener('change', function() {
+        const provider = this.value;
+        const input = document.getElementById('model-input');
+        const suggestions = modelSuggestions[provider] || [];
+        input.placeholder = suggestions.length > 0 ? 'e.g., ' + suggestions[0] : 'Enter model name';
+    });
 </script>
 
 <?php require dirname(__DIR__) . '/admin/_layout_end.php'; ?>

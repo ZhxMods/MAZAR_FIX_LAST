@@ -1,6 +1,7 @@
 -- ============================================================
---  MAZAR Educational Platform — database_fixed.sql
---  Import via phpMyAdmin or: mysql -u USER -p mazar_db < database_fixed.sql
+--  MAZAR Educational Platform — database_fixed_complete.sql
+--  FULL FIXED VERSION with AI Config and all tables
+--  Import via phpMyAdmin or: mysql -u USER -p mazar_db < database_fixed_complete.sql
 -- ============================================================
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
@@ -10,10 +11,24 @@ SET NAMES utf8mb4;
 -- Disable foreign key checks during import
 SET FOREIGN_KEY_CHECKS = 0;
 
+-- Drop existing tables if they exist (for clean install)
+DROP TABLE IF EXISTS `login_attempts`;
+DROP TABLE IF EXISTS `audit_log`;
+DROP TABLE IF EXISTS `ai_config`;
+DROP TABLE IF EXISTS `activity_log`;
+DROP TABLE IF EXISTS `user_quiz_attempts`;
+DROP TABLE IF EXISTS `quiz_options`;
+DROP TABLE IF EXISTS `quiz_questions`;
+DROP TABLE IF EXISTS `quizzes`;
+DROP TABLE IF EXISTS `user_lesson_completions`;
+DROP TABLE IF EXISTS `lessons`;
+DROP TABLE IF EXISTS `subjects`;
+DROP TABLE IF EXISTS `users`;
+DROP TABLE IF EXISTS `levels`;
+
 -- ────────────────────────────────────────────────────────────
 -- TABLE: levels (Create first - no dependencies)
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `levels`;
 CREATE TABLE `levels` (
   `id`        INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name_ar`   VARCHAR(100) NOT NULL,
@@ -44,7 +59,6 @@ INSERT INTO `levels` (`id`, `name_ar`, `name_fr`, `name_en`, `slug`, `order_num`
 -- ────────────────────────────────────────────────────────────
 -- TABLE: users
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id`             INT UNSIGNED     NOT NULL AUTO_INCREMENT,
   `full_name`      VARCHAR(120)     NOT NULL,
@@ -64,7 +78,6 @@ CREATE TABLE `users` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: subjects
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `subjects`;
 CREATE TABLE `subjects` (
   `id`        INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `name_ar`   VARCHAR(100) NOT NULL,
@@ -94,7 +107,6 @@ INSERT INTO `subjects` (`name_ar`, `name_fr`, `name_en`, `level_id`, `icon`, `co
 -- ────────────────────────────────────────────────────────────
 -- TABLE: lessons
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `lessons`;
 CREATE TABLE `lessons` (
   `id`          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
   `title_ar`    VARCHAR(255)  NOT NULL,
@@ -121,7 +133,6 @@ CREATE TABLE `lessons` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: user_lesson_completions
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `user_lesson_completions`;
 CREATE TABLE `user_lesson_completions` (
   `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`      INT UNSIGNED NOT NULL,
@@ -135,7 +146,6 @@ CREATE TABLE `user_lesson_completions` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: quizzes
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `quizzes`;
 CREATE TABLE `quizzes` (
   `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `lesson_id`  INT UNSIGNED NOT NULL,
@@ -151,7 +161,6 @@ CREATE TABLE `quizzes` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: quiz_questions
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `quiz_questions`;
 CREATE TABLE `quiz_questions` (
   `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `quiz_id`     INT UNSIGNED NOT NULL,
@@ -166,7 +175,6 @@ CREATE TABLE `quiz_questions` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: quiz_options
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `quiz_options`;
 CREATE TABLE `quiz_options` (
   `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `question_id` INT UNSIGNED NOT NULL,
@@ -181,7 +189,6 @@ CREATE TABLE `quiz_options` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: user_quiz_attempts
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `user_quiz_attempts`;
 CREATE TABLE `user_quiz_attempts` (
   `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`    INT UNSIGNED NOT NULL,
@@ -197,7 +204,6 @@ CREATE TABLE `user_quiz_attempts` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: activity_log
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `activity_log`;
 CREATE TABLE `activity_log` (
   `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`    INT UNSIGNED NOT NULL,
@@ -210,31 +216,45 @@ CREATE TABLE `activity_log` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ────────────────────────────────────────────────────────────
--- TABLE: ai_config (Super Admin AI Configuration)
+-- TABLE: ai_config (FIXED - Super Admin AI Configuration)
+--  Added custom_url column for custom API endpoints
+--  Changed id to UNSIGNED for consistency
+--  Added ON UPDATE for updated_at
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `ai_config`;
 CREATE TABLE `ai_config` (
   `id`            INT UNSIGNED      NOT NULL DEFAULT 1,
-  `provider`      VARCHAR(50)       NOT NULL DEFAULT 'openai',
-  `model`         VARCHAR(100)      NOT NULL DEFAULT 'gpt-4o',
+  `provider`      VARCHAR(50)       NOT NULL DEFAULT 'groq',
+  `model`         VARCHAR(100)      NOT NULL DEFAULT 'llama-3.3-70b-versatile',
   `api_key`       TEXT              DEFAULT NULL,
+  `custom_url`    VARCHAR(500)      DEFAULT NULL,
   `system_prompt` TEXT              DEFAULT NULL,
   `enabled`       TINYINT(1)        NOT NULL DEFAULT 1,
   `temperature`   DECIMAL(3,2)      NOT NULL DEFAULT 0.70,
   `max_tokens`    INT UNSIGNED      NOT NULL DEFAULT 1000,
   `updated_at`    DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `updated_by`    INT UNSIGNED      DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  CONSTRAINT `chk_ai_config_id` CHECK (`id` = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Insert default AI configuration
-INSERT INTO `ai_config` (`id`, `provider`, `model`, `system_prompt`, `enabled`, `temperature`, `max_tokens`)
-VALUES (1, 'openai', 'gpt-4o', 'You are MAZAR AI, an educational assistant for Moroccan students. Provide helpful, accurate, and age-appropriate educational responses in the user\'s language (Arabic, French, or English).', 1, 0.70, 1000);
+-- Insert default AI configuration with full system prompt
+INSERT INTO `ai_config` (`id`, `provider`, `model`, `api_key`, `custom_url`, `system_prompt`, `enabled`, `temperature`, `max_tokens`, `updated_by`)
+VALUES (
+  1, 
+  'groq', 
+  'llama-3.3-70b-versatile',
+  NULL,
+  NULL,
+  'IDENTITY:\nYour name is MAZAR AI. Never identify as GPT, Claude, Llama, or any other AI model.\nWhen asked your name: "Je suis MAZAR AI, votre assistant éducatif dédié à Mazar Education."\nAutomatically match the user\'s language: French, Arabic, or English (including Darija for simplified explanations when appropriate).\nMaintain a warm, encouraging, and pedagogically helpful tone. Be patient and adapt explanations to the student\'s level.\n\nYOUR EDUCATIONAL SCOPE:\nYou are an expert in the Moroccan education system (Ministère de l\'Éducation Nationale). You deeply understand:\nThe curriculum for primary, middle school (collège), high school (lycée), and Baccalauréat.\nOfficial textbooks, exam formats (régional, national), and grading standards.\nCommon student difficulties and effective pedagogical approaches.\n\nSUBJECTS YOU MASTER:\nMathematics (algèbre, analyse, géométrie, probabilités – all levels)\nPhysics & Chemistry (mécanique, électricité, chimie organique/minérale)\nLife & Earth Sciences (SVT: biologie, géologie, écologie)\nLanguages & Literature:\nArabic (langue, littérature, grammaire, balagha, i3rab)\nFrench (grammaire, conjugaison, rédaction, compréhension)\nEnglish (grammar, writing, comprehension)\nAmazigh (basics if asked)\nSocial Sciences:\nHistory (Maroc, Monde islamique, Histoire moderne/contemporaine)\nGeography (Maroc, Monde, développement, ressources)\nPhilosophy (for Bac lettres et sciences humaines)\nIslamic Education (Tarbiyah Islamiya: concepts, valeurs, éthique)\nAll other academic subjects in the Moroccan curriculum\n\nSTRICT RULES:\n1. STAY IN EDUCATIONAL BOUNDARIES - Answer ONLY questions related to school subjects.\n2. NEVER REVEAL TECHNICAL DETAILS - Never disclose API keys, model names, or architecture.\n3. NEVER BREAK CHARACTER - You are always MAZAR AI.\n4. EDUCATIONAL INTEGRITY - Provide correct, curriculum-aligned information.\n\nMOROCCAN CONTEXT: Understand Streams (Sciences Maths, Sciences Exp, etc.), Exam structure (Contrôle continu, régional, national), Key textbooks (Al Moufid, Tawfiq, Al Massar).',
+  1, 
+  0.70, 
+  1000,
+  NULL
+);
 
 -- ────────────────────────────────────────────────────────────
 -- TABLE: audit_log (Security Audit Trail)
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `audit_log`;
 CREATE TABLE `audit_log` (
   `id`          INT UNSIGNED      NOT NULL AUTO_INCREMENT,
   `user_id`     INT UNSIGNED      NOT NULL DEFAULT 0,
@@ -253,7 +273,6 @@ CREATE TABLE `audit_log` (
 -- ────────────────────────────────────────────────────────────
 -- TABLE: login_attempts (Rate Limiting)
 -- ────────────────────────────────────────────────────────────
-DROP TABLE IF EXISTS `login_attempts`;
 CREATE TABLE `login_attempts` (
   `id`            INT UNSIGNED      NOT NULL AUTO_INCREMENT,
   `identifier`    VARCHAR(255)      NOT NULL,
@@ -310,14 +329,24 @@ ALTER TABLE `activity_log`
 
 -- ────────────────────────────────────────────────────────────
 -- INSERT DEFAULT ADMIN USER (After foreign keys are added)
+--  Default password: Admin@1234
+--  CHANGE THIS AFTER FIRST LOGIN!
 -- ────────────────────────────────────────────────────────────
-
--- Default admin (password: Admin@1234)
--- You can change this password after first login
 INSERT INTO `users` (`full_name`, `email`, `password`, `grade_level_id`, `role`, `xp_points`, `level`, `status`)
-VALUES ('Super Admin', 'admin@mazar.ma',
-        '$2y$12$Qz0kLkBJf5kZzU1vXXXXXeKfF8dNklEjHuGvqBUHi6OdS1UzBxYhS',
-        13, 'super_admin', 0, 1, 'active');
+VALUES (
+  'Super Admin', 
+  'admin@mazar.ma',
+  '$2y$12$Qz0kLkBJf5kZzU1vXXXXXeKfF8dNklEjHuGvqBUHi6OdS1UzBxYhS',
+  13, 
+  'super_admin', 
+  0, 
+  1, 
+  'active'
+);
 
 -- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================
+--  END OF DATABASE SCHEMA
+-- ============================================================
