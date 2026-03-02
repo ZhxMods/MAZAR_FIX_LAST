@@ -142,7 +142,7 @@ $aiEnabled = $aiConfig['enabled'] ?? true;
       array('manage_subjects.php', 'layers',        t('manage_subjects')),
       array('manage_levels.php',   'list-ordered',  t('manage_levels')),
       array('manage_users.php',    'users',         t('manage_users')),
-      array('ai_config.php',       'sparkles',      'Mazal AI Config'),
+      array('ai_config.php',       'sparkles',      'Mazar AI Config'),
     );
     ?>
 

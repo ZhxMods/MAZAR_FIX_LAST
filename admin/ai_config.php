@@ -12,7 +12,7 @@ requireSuperAdmin();
 
 $lang = getCurrentLang();
 $dir  = getDirection();
-$pageTitle = 'Mazal AI Configuration';
+$pageTitle = 'Mazar AI Configuration';
 
 $db = getDB();
 $errors = [];
